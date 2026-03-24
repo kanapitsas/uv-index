@@ -1,0 +1,9 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+uv-index-web/node_modules/
+uv-index-web/build/
+uv-index-web/.svelte-kit/
