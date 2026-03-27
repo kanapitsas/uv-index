@@ -7,3 +7,4 @@ __pycache__/
 uv-index-web/node_modules/
 uv-index-web/build/
 uv-index-web/.svelte-kit/
+.vercel
