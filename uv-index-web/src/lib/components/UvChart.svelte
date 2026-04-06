@@ -5,9 +5,10 @@
 	interface Props {
 		data: UvCurveResult;
 		timezone: string;
+		nowHour?: number;
 	}
 
-	let { data, timezone }: Props = $props();
+	let { data, timezone, nowHour }: Props = $props();
 
 	let svgEl: SVGSVGElement | undefined = $state();
 
@@ -231,6 +232,47 @@
 				.attr('text-anchor', 'middle').attr('fill', '#333')
 				.attr('font-size', '12px').attr('font-weight', 600)
 				.text(`UV max ${data.uvMax.toFixed(1)} \u00e0 ${formatHour(data.peakHour)}`);
+		}
+
+		// "Now" marker
+		if (nowHour !== undefined && nowHour >= xDomainMin && nowHour <= xDomainMax) {
+			const minuteIdx = Math.max(0, Math.min(data.uvValues.length - 1, Math.round(nowHour * 60)));
+			const nowUv = data.uvValues[minuteIdx];
+			const nx = x(nowHour);
+			const ny = y(nowUv);
+
+			// Vertical line
+			g.append('line')
+				.attr('x1', nx).attr('x2', nx)
+				.attr('y1', 0).attr('y2', h)
+				.attr('stroke', '#0ea5e9').attr('stroke-width', 1.5)
+				.attr('stroke-dasharray', '4,3').attr('opacity', 0.7);
+
+			// Pulsing outer ring
+			g.append('circle')
+				.attr('cx', nx).attr('cy', ny).attr('r', 9)
+				.attr('fill', '#0ea5e9').attr('opacity', 0.2);
+
+			// Dot
+			g.append('circle')
+				.attr('cx', nx).attr('cy', ny).attr('r', 5)
+				.attr('fill', '#0ea5e9').attr('stroke', 'white').attr('stroke-width', 2);
+
+			// Label
+			const labelRight = nowHour < (xDomainMin + xDomainMax) / 2;
+			const lx = labelRight ? nx + 10 : nx - 10;
+			const anchor = labelRight ? 'start' : 'end';
+			const nowLabel = g.append('g').attr('transform', `translate(${lx},${ny - 14})`);
+			const labelW = 78;
+			nowLabel.append('rect')
+				.attr('x', anchor === 'end' ? -labelW - 4 : -4).attr('y', -15)
+				.attr('width', labelW + 8).attr('height', 20).attr('rx', 4)
+				.attr('fill', '#0ea5e9').attr('opacity', 0.9);
+			nowLabel.append('text')
+				.attr('x', anchor === 'end' ? -labelW / 2 - 4 : labelW / 2 - 4).attr('y', -1)
+				.attr('text-anchor', 'middle').attr('fill', 'white')
+				.attr('font-size', '11px').attr('font-weight', 700)
+				.text(`Maintenant`);
 		}
 
 		// ---- Interactive tooltip ----

@@ -144,7 +144,7 @@
 			{/if}
 
 			<UvResult data={uvData} {altitude} {timezone} />
-			<UvChart data={uvData} {timezone} />
+			<UvChart data={uvData} {timezone} nowHour={currentUvInfo?.hour} />
 			<UvTable data={uvData} />
 
 			<aside class="info-box">
