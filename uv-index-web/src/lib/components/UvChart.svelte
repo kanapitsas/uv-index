@@ -208,7 +208,17 @@
 			.attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
 			.attr('stroke', '#eee').attr('stroke-dasharray', '2,3');
 
+		// Helper: axis-aligned bbox collision
+		type Bbox = { x1: number; y1: number; x2: number; y2: number };
+		function overlaps(a: Bbox, b: Bbox) {
+			return !(a.x2 < b.x1 || b.x2 < a.x1 || a.y2 < b.y1 || b.y2 < a.y1);
+		}
+		function outOfBounds(b: Bbox) {
+			return b.x1 < 0 || b.x2 > w || b.y1 < 0 || b.y2 > h;
+		}
+
 		// Peak annotation
+		let peakBbox: Bbox = { x1: 0, y1: 0, x2: 0, y2: 0 };
 		if (data.uvMax > 0 && data.peakHour >= xDomainMin && data.peakHour <= xDomainMax) {
 			const px = x(data.peakHour);
 			const py = y(data.uvMax);
@@ -217,18 +227,21 @@
 				.attr('cx', px).attr('cy', py).attr('r', 4)
 				.attr('fill', mainColor).attr('stroke', 'white').attr('stroke-width', 2);
 
-			const labelX = data.peakHour > (xDomainMin + xDomainMax) / 2 + 2 ? px - 10 : px + 10;
-			const anchor = labelX < px ? 'end' : 'start';
+			const peakRight = data.peakHour <= (xDomainMin + xDomainMax) / 2 + 2;
+			const peakLabelX = peakRight ? px + 10 : px - 10;
+			const peakAnchor = peakRight ? 'start' : 'end';
 
-			const label = g.append('g').attr('transform', `translate(${labelX},${py - 12})`);
+			// bbox in g-coords
+			const prx = peakRight ? peakLabelX - 4 : peakLabelX - 130;
+			peakBbox = { x1: prx, y1: py - 28, x2: prx + 134, y2: py - 6 };
 
+			const label = g.append('g').attr('transform', `translate(${peakLabelX},${py - 12})`);
 			label.append('rect')
-				.attr('x', anchor === 'end' ? -130 : -4).attr('y', -16)
+				.attr('x', peakAnchor === 'end' ? -130 : -4).attr('y', -16)
 				.attr('width', 134).attr('height', 22).attr('rx', 4)
 				.attr('fill', 'white').attr('stroke', '#ddd').attr('stroke-width', 1);
-
 			label.append('text')
-				.attr('x', anchor === 'end' ? -63 : 63).attr('y', 0)
+				.attr('x', peakAnchor === 'end' ? -63 : 63).attr('y', 0)
 				.attr('text-anchor', 'middle').attr('fill', '#333')
 				.attr('font-size', '12px').attr('font-weight', 600)
 				.text(`UV max ${data.uvMax.toFixed(1)} \u00e0 ${formatHour(data.peakHour)}`);
@@ -248,7 +261,7 @@
 				.attr('stroke', '#0ea5e9').attr('stroke-width', 1.5)
 				.attr('stroke-dasharray', '4,3').attr('opacity', 0.7);
 
-			// Pulsing outer ring
+			// Outer ring
 			g.append('circle')
 				.attr('cx', nx).attr('cy', ny).attr('r', 9)
 				.attr('fill', '#0ea5e9').attr('opacity', 0.2);
@@ -258,21 +271,44 @@
 				.attr('cx', nx).attr('cy', ny).attr('r', 5)
 				.attr('fill', '#0ea5e9').attr('stroke', 'white').attr('stroke-width', 2);
 
-			// Label
-			const labelRight = nowHour < (xDomainMin + xDomainMax) / 2;
-			const lx = labelRight ? nx + 10 : nx - 10;
-			const anchor = labelRight ? 'start' : 'end';
-			const nowLabel = g.append('g').attr('transform', `translate(${lx},${ny - 14})`);
-			const labelW = 78;
+			// Label: try positions in order of preference to avoid peak label & chart bounds
+			// [side_right, above_dot]
+			const nowPreferRight = nowHour <= data.peakHour;
+			const LW = 60; const LH = 20; // label rect size
+			function nowBbox(right: boolean, above: boolean): Bbox {
+				const lx = right ? nx + 10 : nx - 10;
+				const ty = above ? ny - 29 : ny + 10;
+				return right
+					? { x1: lx - 4, y1: ty, x2: lx - 4 + LW, y2: ty + LH }
+					: { x1: lx + 4 - LW, y1: ty, x2: lx + 4, y2: ty + LH };
+			}
+			const candidates: [boolean, boolean][] = [
+				[nowPreferRight, true],
+				[!nowPreferRight, true],
+				[nowPreferRight, false],
+				[!nowPreferRight, false]
+			];
+			let [finalRight, finalAbove] = candidates[0];
+			for (const [r, a] of candidates) {
+				const b = nowBbox(r, a);
+				if (!overlaps(b, peakBbox) && !outOfBounds(b)) { finalRight = r; finalAbove = a; break; }
+			}
+
+			const lx = finalRight ? nx + 10 : nx - 10;
+			const groupY = finalAbove ? ny - 14 : ny + 22;
+			const rectOffsetX = finalRight ? -4 : -LW + 4;
+			const textX = finalRight ? LW / 2 - 4 : -LW / 2 + 4;
+
+			const nowLabel = g.append('g').attr('transform', `translate(${lx},${groupY})`);
 			nowLabel.append('rect')
-				.attr('x', anchor === 'end' ? -labelW - 4 : -4).attr('y', -15)
-				.attr('width', labelW + 8).attr('height', 20).attr('rx', 4)
+				.attr('x', rectOffsetX).attr('y', -15)
+				.attr('width', LW).attr('height', LH).attr('rx', 4)
 				.attr('fill', '#0ea5e9').attr('opacity', 0.9);
 			nowLabel.append('text')
-				.attr('x', anchor === 'end' ? -labelW / 2 - 4 : labelW / 2 - 4).attr('y', -1)
+				.attr('x', textX).attr('y', -1)
 				.attr('text-anchor', 'middle').attr('fill', 'white')
 				.attr('font-size', '11px').attr('font-weight', 700)
-				.text(`Maintenant`);
+				.text(`\u23f1 ${nowUv.toFixed(1)}`);
 		}
 
 		// ---- Interactive tooltip ----
