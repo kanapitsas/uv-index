@@ -174,6 +174,9 @@
 						<p class="info-ref">
 							Modèle basé sur la formulation erythemal de Madronich (1993) / WMO (2002).
 						</p>
+						<p class="info-ref">
+							Projet personnel de Raphaël Kanapitsas · <a href="https://rkan.org">rkan.org</a>
+						</p>
 					</div>
 				</details>
 			</aside>
